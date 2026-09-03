@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Задача #{{ task.id }} — TextDiff{% endblock %}
+{% block h1 %}Задача #{{ task.id }} — {{ task.name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <p><strong>Статус:</strong> {{ task.get_status_display }}</p>
+  {% if task.error %}<p class="status-failed"><strong>Ошибка:</strong> {{ task.error }}</p>{% endif %}
+</div>
+{% if task.result %}
+  <h2>Результат</h2>
+  <p>Всего текстов: {{ task.result.n_texts }}</p>
+  <p>Тест: {{ task.result.test }}</p>
+  <p>Статистика: {{ task.result.statistic }}</p>
+  <p>p-value: {{ task.result.pvalue }}</p>
+  <h3>Группы</h3>
+  <table>
+    <tr><th>Группа</th><th>Текстов</th><th>Средняя длина слов</th><th>Средний TTR</th><th>Средняя длина слова</th></tr>
+    {% for name, stat in task.result.groups.items %}
+    <tr><td>{{ name }}</td><td>{{ stat.n_texts }}</td><td>{{ stat.avg_len_words|floatformat:2 }}</td><td>{{ stat.avg_ttr|floatformat:4 }}</td><td>{{ stat.avg_word_len|floatformat:2 }}</td></tr>
+    {% endfor %}
+  </table>
+  <h3>Частые слова</h3>
+  <table>
+    <tr><th>Слово</th><th>Частота</th></tr>
+    {% for item in task.result.top_words %}
+    <tr><td>{{ item.0 }}</td><td>{{ item.1 }}</td></tr>
+    {% endfor %}
+  </table>
+{% endif %}
+<p><a href="{% url 'task_list' %}">← К списку</a></p>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Задачи — TextDiff{% endblock %}
+{% block h1 %}Задачи{% endblock %}
+{% block content %}
+<p><a href="{% url 'task_create' %}">+ Новая задача</a></p>
+<table>
+  <tr><th>ID</th><th>Название</th><th>Статус</th><th>Создана</th><th></th></tr>
+  {% for task in tasks %}
+  <tr>
+    <td>{{ task.id }}</td>
+    <td>{{ task.name }}</td>
+    <td class="status-{{ task.status }}">{{ task.get_status_display }}</td>
+    <td>{{ task.created_at }}</td>
+    <td><a href="{% url 'task_detail' task.id %}">Открыть</a></td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="5">Пока нет задач.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

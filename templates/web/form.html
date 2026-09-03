@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Новая задача — TextDiff{% endblock %}
+{% block h1 %}Новая задача — TextDiff{% endblock %}
+{% block content %}
+<div class="card">
+  <p>Загрузите CSV с колонками текста и группы.</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Запустить расчёт</button>
+  </form>
+</div>
+{% endblock %}
