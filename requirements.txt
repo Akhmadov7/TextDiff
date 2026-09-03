@@ -9,3 +9,4 @@ rq>=2.0
 redis>=5
 gunicorn>=22
 psycopg[binary]>=3.2
+scipy
