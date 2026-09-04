@@ -1,5 +1,3 @@
-import json
-
 from django.shortcuts import get_object_or_404, redirect, render
 
 from web import services
@@ -16,7 +14,9 @@ def task_create(request):
     form = TaskForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
         try:
-            rows = services.parse_csv_file(form.cleaned_data["file"], form.cleaned_data["text_col"], form.cleaned_data["group_col"])
+            rows = services.parse_csv_file(
+                form.cleaned_data["file"], form.cleaned_data["text_col"], form.cleaned_data["group_col"]
+            )
             params = {
                 "rows": rows,
                 "test": form.cleaned_data["test"],

@@ -1,5 +1,5 @@
-from django.core.files.uploadedfile import SimpleUploadedFile
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 
 @pytest.mark.django_db
