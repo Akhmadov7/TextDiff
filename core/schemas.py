@@ -11,8 +11,10 @@ class TextDiffParams(BaseModel):
     rows: list[Row] = Field(min_length=2, max_length=50_000)
     text_col: str = Field(default="text", min_length=1, max_length=100)
     group_col: str = Field(default="group", min_length=1, max_length=100)
-    test: str = Field(default="mannwhitney", pattern=r"^(mannwhitney|ttest)$")
+    test: str = Field(default="mannwhitney", pattern=r"^(mannwhitney|ttest|permutation)$")
     top_n: int = Field(default=20, ge=1, le=200)
+    n_permutations: int = Field(default=1000, ge=1, le=200_000)
+    seed: int = Field(default=0)
 
     @field_validator("rows")
     @classmethod
@@ -37,3 +39,5 @@ class TextDiffResult(BaseModel):
     statistic: float | None
     pvalue: float | None
     top_words: list[tuple[str, int]]
+    permutations_used: int | None = None
+    permutations_exact: bool | None = None

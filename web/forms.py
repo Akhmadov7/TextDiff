@@ -8,10 +8,22 @@ class TaskForm(forms.Form):
     group_col = forms.CharField(label="Колонка с группой", initial="group", max_length=100)
     test = forms.ChoiceField(
         label="Статистический тест",
-        choices=[("mannwhitney", "Манна—Уитни"), ("ttest", "t-критерий")],
+        choices=[
+            ("mannwhitney", "Манна—Уитни"),
+            ("ttest", "t-критерий"),
+            ("permutation", "Перестановочный (свой)"),
+        ],
         initial="mannwhitney",
     )
     top_n = forms.IntegerField(label="Топ слов", initial=20, min_value=1, max_value=200)
+    n_permutations = forms.IntegerField(
+        label="Число перестановок", initial=1000, min_value=1, max_value=200_000,
+        help_text="Используется только для перестановочного теста",
+    )
+    seed = forms.IntegerField(
+        label="Seed", initial=0,
+        help_text="Одинаковый seed даёт одинаковый результат при случайной выборке перестановок",
+    )
 
     def clean_file(self):
         uploaded = self.cleaned_data["file"]

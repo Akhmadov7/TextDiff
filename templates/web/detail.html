@@ -12,6 +12,10 @@
   <p>Тест: {{ task.result.test }}</p>
   <p>Статистика: {{ task.result.statistic }}</p>
   <p>p-value: {{ task.result.pvalue }}</p>
+  {% if task.result.permutations_used %}
+  <p>Перестановок использовано: {{ task.result.permutations_used }}
+    ({% if task.result.permutations_exact %}точный перебор{% else %}случайная выборка{% endif %})</p>
+  {% endif %}
   <h3>Группы</h3>
   <table>
     <tr><th>Группа</th><th>Текстов</th><th>Средняя длина слов</th><th>Средний TTR</th><th>Средняя длина слова</th></tr>

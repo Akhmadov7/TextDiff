@@ -21,6 +21,8 @@ def task_create(request):
                 "rows": rows,
                 "test": form.cleaned_data["test"],
                 "top_n": form.cleaned_data["top_n"],
+                "n_permutations": form.cleaned_data["n_permutations"],
+                "seed": form.cleaned_data["seed"],
             }
             owner = request.user if request.user.is_authenticated else None
             task = services.create_task(form.cleaned_data["name"], params, owner=owner)

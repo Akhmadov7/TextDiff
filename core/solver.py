@@ -1,7 +1,10 @@
 """Вычислительное ядро TextDiff. Не зависит от Django, HTTP или БД."""
+import itertools
 import math
+import random
 import re
 from collections import Counter
+from math import comb
 from time import perf_counter
 
 from scipy import stats
@@ -30,6 +33,35 @@ def _text_stats(text: str) -> tuple[int, float, float]:
     text_ttr = ttr(text)
     avg_word_len = sum(len(word) for word in words) / count
     return count, text_ttr, avg_word_len
+
+
+def permutation_test(group_a: list[float], group_b: list[float], n_permutations: int, seed: int) -> dict:
+    """Перестановочный тест: [1,1] vs [3,3] -> pvalue == 2/6 (см. тесты)."""
+    pooled = list(group_a) + list(group_b)
+    n, na = len(pooled), len(group_a)
+    observed = abs(sum(group_a) / na - sum(group_b) / (n - na))
+
+    total = comb(n, na)
+    if total <= n_permutations:
+        diffs = []
+        for idx in itertools.combinations(range(n), na):
+            idx_set = set(idx)
+            a = [pooled[i] for i in idx_set]
+            b = [pooled[i] for i in range(n) if i not in idx_set]
+            diffs.append(abs(sum(a) / na - sum(b) / (n - na)))
+        used, exact = total, True
+    else:
+        rng = random.Random(seed)
+        diffs = []
+        for _ in range(n_permutations):
+            shuffled = pooled[:]
+            rng.shuffle(shuffled)
+            a, b = shuffled[:na], shuffled[na:]
+            diffs.append(abs(sum(a) / na - sum(b) / (n - na)))
+        used, exact = n_permutations, False
+
+    at_least = sum(1 for d in diffs if d >= observed - 1e-9)
+    return {"statistic": observed, "pvalue": at_least / used, "used": used, "exact": exact}
 
 
 def run(params: dict) -> dict:
@@ -65,24 +97,25 @@ def run(params: dict) -> dict:
 
     group_names = list(ttr_by_group)
     statistic = pvalue = None
+    perm_used = perm_exact = None
     if len(group_names) == 2:
         first, second = (ttr_by_group[group_names[0]], ttr_by_group[group_names[1]])
-        if validated.test == "ttest":
-            statistic, pvalue = stats.ttest_ind(first, second, equal_var=False)
+        if validated.test == "permutation":
+            perm = permutation_test(first, second, validated.n_permutations, validated.seed)
+            statistic, pvalue = perm["statistic"], perm["pvalue"]
+            perm_used, perm_exact = perm["used"], perm["exact"]
         else:
-            statistic, pvalue = stats.mannwhitneyu(first, second, alternative="two-sided")
-        statistic, pvalue = float(statistic), float(pvalue)
-        # При одинаковых выборках различия отсутствуют по определению. Некоторые версии
-        # SciPy возвращают NaN для полностью связанных рангов, поэтому фиксируем p-value.
-        if sorted(first) == sorted(second):
-            pvalue = 1.0
-        # при полностью совпадающих значениях в группах (все TTR равны) scipy
-        # возвращает NaN — это не число и не проходит JSON_VALID в SQLite при
-        # сохранении в JSONField, поэтому явно превращаем в null
-        if math.isnan(statistic) or math.isinf(statistic):
-            statistic = None
-        if math.isnan(pvalue) or math.isinf(pvalue):
-            pvalue = None
+            if validated.test == "ttest":
+                statistic, pvalue = stats.ttest_ind(first, second, equal_var=False)
+            else:
+                statistic, pvalue = stats.mannwhitneyu(first, second, alternative="two-sided")
+            statistic, pvalue = float(statistic), float(pvalue)
+            if sorted(first) == sorted(second):
+                pvalue = 1.0
+            if math.isnan(statistic) or math.isinf(statistic):
+                statistic = None
+            if math.isnan(pvalue) or math.isinf(pvalue):
+                pvalue = None
 
     elapsed = perf_counter() - started
     result = TextDiffResult(
@@ -92,6 +125,8 @@ def run(params: dict) -> dict:
         statistic=statistic,
         pvalue=pvalue,
         top_words=words.most_common(validated.top_n),
+        permutations_used=perm_used,
+        permutations_exact=perm_exact,
     ).model_dump()
     result["core_version"] = VERSION
     result["elapsed_sec"] = round(elapsed, 4)

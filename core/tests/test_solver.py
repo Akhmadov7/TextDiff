@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from core.solver import run, ttr
+from core.solver import permutation_test, run, ttr
 
 
 def sample_params():
@@ -43,6 +43,35 @@ def test_validation_rejects_single_group():
 def test_ttr_by_definition():
     assert ttr("а а а а") == 0.25
     assert ttr("а б в г") == 1.0
+
+
+def test_permutation_test_matches_known_example():
+    # [1,1] и [3,3]: из 6 разбиений по 2+2 у двух разность средних >= 2 -> p=2/6
+    result = permutation_test([1, 1], [3, 3], n_permutations=1000, seed=0)
+    assert result["statistic"] == pytest.approx(2.0)
+    assert result["pvalue"] == pytest.approx(2 / 6)
+    assert result["exact"] is True
+
+
+def test_permutation_test_same_seed_is_reproducible():
+    a, b = list(range(20)), list(range(20, 45))
+    first = permutation_test(a, b, n_permutations=500, seed=42)
+    second = permutation_test(a, b, n_permutations=500, seed=42)
+    assert first["exact"] is False
+    assert first == second
+
+
+def test_permutation_test_wired_into_run():
+    rows = [
+        {"text": "кот кот кот кот", "group": "A"},
+        {"text": "кот кот", "group": "A"},
+        {"text": "дом окно улица небо", "group": "B"},
+        {"text": "дом окно улица", "group": "B"},
+    ]
+    result = run({"rows": rows, "test": "permutation", "n_permutations": 1000, "seed": 0})
+    assert result["test"] == "permutation"
+    assert result["pvalue"] is not None
+    assert result["permutations_used"] is not None
 
 
 def test_identical_groups_show_no_difference():
