@@ -283,7 +283,7 @@ CI (`.github/workflows/ci.yml`): на каждый `push` и `pull_request` — 
 
 ## Команда
 
-| Участник | Роль | Зона ответственности |
+| Участник | Роль | Вклад |
 | --- | --- | --- |
 | **Ахмадов Магомед** | Core | вычислительное ядро: `core/solver.py`, `core/schemas.py`, `core/tests/` |
 | **Зайналабдиев Рамзан** | Backend | сервисный слой, views, настройки, замеры, CI: `web/services.py`, `web/views.py`, `config/`, `measure.py`, `tests/test_scenario.py`, `.github/workflows/ci.yml` |
