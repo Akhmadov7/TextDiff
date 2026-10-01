@@ -1,5 +1,10 @@
 """Pydantic-контракт вычислительного ядра TextDiff."""
-from pydantic import BaseModel, Field, field_validator
+import re
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+WORD_RE = re.compile(r"[а-яa-zё]+", re.IGNORECASE)  # что считается словом (используют схема и solver)
+LIMIT = 40_000_000  # граница входа: строк × перестановок (по замеру ≈ 10–15 секунд, см. README)
 
 
 class Row(BaseModel):
@@ -18,11 +23,25 @@ class TextDiffParams(BaseModel):
 
     @field_validator("rows")
     @classmethod
-    def at_least_two_groups(cls, rows: list[Row]) -> list[Row]:
+    def exactly_two_groups_and_words_in_texts(cls, rows: list[Row]) -> list[Row]:
         groups = {row.group for row in rows}
-        if len(groups) < 2:
-            raise ValueError("Нужно минимум две группы текстов для сравнения")
+        if len(groups) != 2:
+            raise ValueError(f"Нужно ровно две группы текстов для сравнения, найдено: {len(groups)}")
+        for index, row in enumerate(rows):
+            if not WORD_RE.search(row.text):
+                # +2: первая строка CSV — заголовок, нумерация строк данных идёт с 2 (как в services.parse_csv_file)
+                raise ValueError(f"Строка {index + 2}: в тексте нет ни одного слова")
         return rows
+
+    @model_validator(mode="after")
+    def work_is_within_limit(self):
+        # n_permutations влияет на время расчёта только у перестановочного теста
+        if self.test == "permutation" and len(self.rows) * self.n_permutations > LIMIT:
+            raise ValueError(
+                f"Слишком большой расчёт: строк × перестановок = {len(self.rows) * self.n_permutations}, "
+                f"допустимо не больше {LIMIT}"
+            )
+        return self
 
 
 class GroupStats(BaseModel):

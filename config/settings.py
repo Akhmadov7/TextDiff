@@ -17,8 +17,8 @@ if _env_file.exists():
             _k, _v = _line.split("=", 1)
             os.environ.setdefault(_k.strip(), _v.strip())
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key-change-me")
-DEBUG = os.environ.get("DEBUG", "1") == "1"
+SECRET_KEY = os.environ["SECRET_KEY"]  # без запасного значения: нет ключа в .env — сервер не запустится
+DEBUG = os.environ.get("DEBUG", "0") == "1"  # по умолчанию выключен; для разработки DEBUG=1 в .env
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 # Флаг заезда 2: выполнять расчёт в очереди (RQ + Redis) или синхронно прямо в запросе.
@@ -104,4 +104,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-LOGIN_URL = "/admin/login/"
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"

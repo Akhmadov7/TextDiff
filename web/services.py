@@ -1,8 +1,10 @@
 """Сервисный слой между Django views/API и чистым вычислительным ядром."""
 import csv
 import io
+import threading
 
 from django.conf import settings
+from django.db import connection
 from django.utils import timezone
 
 from core import VERSION, run
@@ -47,9 +49,16 @@ def create_task(name: str, params: dict, owner=None) -> Task:
 
         enqueue_task(task.pk)
     else:
-        execute_task(task.pk)
-        task.refresh_from_db()
+        # ADR-004: расчёт в потоке — запрос отвечает сразу, статус меняется сам
+        threading.Thread(target=_execute_in_thread, args=(task.pk,), daemon=True).start()
     return task
+
+
+def _execute_in_thread(task_id: int) -> None:
+    try:
+        execute_task(task_id)
+    finally:
+        connection.close()  # у потока своё подключение к БД — закрываем, когда закончили
 
 
 def execute_task(task_id: int) -> None:

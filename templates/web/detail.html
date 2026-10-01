@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Задача #{{ task.id }} — TextDiff{% endblock %}
+{% block head %}{% if task.status != "done" and task.status != "failed" %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
 {% block h1 %}Задача #{{ task.id }} — {{ task.name }}{% endblock %}
 {% block content %}
 <div class="card">

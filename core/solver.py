@@ -2,17 +2,15 @@
 import itertools
 import math
 import random
-import re
 from collections import Counter
 from math import comb
 from time import perf_counter
 
 from scipy import stats
 
-from core.schemas import TextDiffParams, TextDiffResult
+from core.schemas import WORD_RE, TextDiffParams, TextDiffResult
 
 VERSION = "0.1.0"
-WORD_RE = re.compile(r"[а-яa-zё]+", re.IGNORECASE)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -61,7 +59,11 @@ def permutation_test(group_a: list[float], group_b: list[float], n_permutations:
         used, exact = n_permutations, False
 
     at_least = sum(1 for d in diffs if d >= observed - 1e-9)
-    return {"statistic": observed, "pvalue": at_least / used, "used": used, "exact": exact}
+    if exact:
+        pvalue = at_least / used
+    else:
+        pvalue = (at_least + 1) / (used + 1)
+    return {"statistic": observed, "pvalue": pvalue, "used": used, "exact": exact}
 
 
 def run(params: dict) -> dict:

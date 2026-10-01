@@ -53,6 +53,13 @@ def test_permutation_test_matches_known_example():
     assert result["exact"] is True
 
 
+def test_sampled_pvalue_never_zero():
+    # эталон: Phipson, Smyth (2010) — p >= 1 / (n + 1)
+    result = permutation_test([1] * 10, [10] * 10, n_permutations=1000, seed=1)
+    assert result["exact"] is False
+    assert result["pvalue"] == 1 / 1001
+
+
 def test_permutation_test_same_seed_is_reproducible():
     a, b = list(range(20)), list(range(20, 45))
     first = permutation_test(a, b, n_permutations=500, seed=42)

@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-only-key  # в CI нет .env; в settings.py у ключа нет запасного значения
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
