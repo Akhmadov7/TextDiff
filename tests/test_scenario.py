@@ -2,10 +2,14 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
-from tests.utils import login_new_user, wait_until_finished
+from tests.utils import login_new_user
 from web.models import Task
 
 CSV_DATA = "text,group\nхороший текст,A\nещё хороший,A\nплохой текст,B\nдругой плохой,B\n"
+
+
+def _task_id(response) -> int:
+    return int(response.headers["Location"].strip("/").split("/")[-1])
 
 
 def _upload(client, name="demo", test="mannwhitney"):
@@ -24,33 +28,31 @@ def _upload(client, name="demo", test="mannwhitney"):
     )
 
 
-@pytest.mark.django_db(transaction=True)  # расчёт идёт в потоке (ADR-004)
+@pytest.mark.django_db
 def test_user_creates_task_via_form_and_sees_result(client):
     login_new_user(client)
     response = _upload(client, name="demo")
     assert response.status_code == 302
-    wait_until_finished(int(response.headers["Location"].strip("/").split("/")[-1]))
     page = client.get(response.headers["Location"])
     assert page.status_code == 200
     assert "Готово" in page.content.decode()
 
 
-@pytest.mark.django_db(transaction=True)  # расчёт идёт в потоке (ADR-004)
+@pytest.mark.django_db
 def test_user_creates_task_with_permutation_test(client):
     login_new_user(client)
     response = _upload(client, name="demo-permutation", test="permutation")
     assert response.status_code == 302
-    wait_until_finished(int(response.headers["Location"].strip("/").split("/")[-1]))
     page = client.get(response.headers["Location"])
     assert "Перестановок использовано" in page.content.decode()
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_task_reaches_done_and_has_pvalue(client):
     # пара 15: отправили CSV -> задача дошла до «готово» -> в результате есть p-value
     login_new_user(client)
     response = _upload(client, name="done-check")
-    task = wait_until_finished(int(response.headers["Location"].strip("/").split("/")[-1]))
+    task = Task.objects.get(pk=_task_id(response))
     assert task.status == Task.Status.DONE
     assert task.result["pvalue"] is not None
 
@@ -65,12 +67,11 @@ def test_anonymous_is_redirected_to_login(client):
     assert response.headers["Location"].startswith("/accounts/login/")
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_user_does_not_see_others_task_via_web(client):
     login_new_user(client, username="user1")
     response = _upload(client, name="секрет A")
-    task_id = int(response.headers["Location"].strip("/").split("/")[-1])
-    wait_until_finished(task_id)
+    task_id = _task_id(response)
 
     other_client = Client()
     login_new_user(other_client, username="user2")

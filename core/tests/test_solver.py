@@ -90,3 +90,28 @@ def test_identical_groups_show_no_difference():
     ]
     result = run({"rows": rows, "test": "mannwhitney"})
     assert result["pvalue"] >= 0.9
+
+
+# --- ограничение метрики TTR (docs/architecture.md, разделы 7 и 12) -------------------------------------------
+
+VOCABULARY = ["кот", "пёс", "дом", "лес", "река", "поле", "луг", "мост", "сад", "холм"]
+
+
+def test_ttr_drops_when_text_gets_longer():
+    short_text = " ".join(VOCABULARY)  # 10 слов, все разные
+    long_text = " ".join(VOCABULARY * 5)  # тот же словарь, но 50 слов
+    assert ttr(short_text) == 1.0
+    assert ttr(long_text) == pytest.approx(10 / 50)
+
+
+def test_groups_with_different_text_length_differ_in_ttr_even_with_same_vocabulary():
+    rows = [
+        {"text": " ".join(VOCABULARY), "group": "A"},
+        {"text": " ".join(VOCABULARY), "group": "A"},
+        {"text": " ".join(VOCABULARY * 5), "group": "B"},
+        {"text": " ".join(VOCABULARY * 5), "group": "B"},
+    ]
+    result = run({"rows": rows, "test": "mannwhitney"})
+    short_group, long_group = result["groups"]["A"], result["groups"]["B"]
+    assert long_group["avg_len_words"] > short_group["avg_len_words"]
+    assert long_group["avg_ttr"] < short_group["avg_ttr"]  # словарь один, а различие «есть»: виновата длина

@@ -2,6 +2,7 @@
 import csv
 import io
 import threading
+from pathlib import Path
 
 from django.conf import settings
 from django.db import connection
@@ -10,6 +11,11 @@ from django.utils import timezone
 from core import VERSION, run
 from core.schemas import TextDiffParams
 from web.models import Task
+
+INPUT_DIR = "inputs"  # подпапка MEDIA_ROOT, куда кладутся входные CSV задач (ADR-006)
+
+# Текст по схеме — до 200 000 символов, а стандартный предел модуля csv — 131 072 символа в ячейке.
+csv.field_size_limit(1_000_000)
 
 
 def parse_csv_file(uploaded_file, text_col: str, group_col: str) -> list[dict]:
@@ -41,13 +47,58 @@ def parse_csv_file(uploaded_file, text_col: str, group_col: str) -> list[dict]:
     return rows
 
 
+def save_input_file(task_id: int, rows: list[dict]) -> str:
+    """Кладёт входной CSV задачи на диск и возвращает путь относительно MEDIA_ROOT — его и хранит база."""
+    relative = f"{INPUT_DIR}/task_{task_id}.csv"
+    full = Path(settings.MEDIA_ROOT) / relative
+    full.parent.mkdir(parents=True, exist_ok=True)
+    with full.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["text", "group"])
+        writer.writeheader()
+        writer.writerows(rows)
+    return relative
+
+
+def load_input_rows(relative_path: str) -> list[dict]:
+    """Читает входной CSV задачи по пути из базы. Путь обязан вести внутрь MEDIA_ROOT/inputs/."""
+    base = (Path(settings.MEDIA_ROOT) / INPUT_DIR).resolve()
+    full = (Path(settings.MEDIA_ROOT) / relative_path).resolve()
+    if base not in full.parents:
+        raise ValueError(f"Входной файл должен лежать в папке {INPUT_DIR}/ внутри MEDIA_ROOT")
+    if not full.is_file():
+        raise ValueError(f"Входной файл задачи не найден: {relative_path}")
+    with full.open("r", encoding="utf-8", newline="") as file:
+        return [{"text": row["text"], "group": row["group"]} for row in csv.DictReader(file)]
+
+
+def _core_params(params: dict) -> dict:
+    """Собирает вход для ядра: строки берутся из файла. Старые задачи (rows прямо в params) тоже работают."""
+    core_params = dict(params)
+    input_file = core_params.pop("input_file", None)
+    core_params.pop("n_rows", None)
+    if input_file:
+        core_params["rows"] = load_input_rows(input_file)
+    return core_params
+
+
 def create_task(name: str, params: dict, owner=None) -> Task:
     validated = TextDiffParams.model_validate(params)
-    task = Task.objects.create(name=name, params=validated.model_dump(), owner=owner)
+    settings_only = validated.model_dump()
+    rows = settings_only.pop("rows")  # CSV в базу не кладём: в params остаются настройки и путь к файлу
+    task = Task.objects.create(name=name, params=settings_only, owner=owner)
+    try:
+        task.params["input_file"] = save_input_file(task.pk, rows)
+        task.params["n_rows"] = len(rows)
+        task.save(update_fields=["params"])
+    except OSError as exc:
+        task.delete()
+        raise ValueError(f"Не удалось сохранить входной файл: {exc}") from exc
     if settings.USE_QUEUE:
         from web.jobs import enqueue_task
 
         enqueue_task(task.pk)
+    elif settings.TASKS_SYNC:
+        execute_task(task.pk)  # только для тестов: без потока тест не делит базу с фоновым потоком
     else:
         # ADR-004: расчёт в потоке — запрос отвечает сразу, статус меняется сам
         threading.Thread(target=_execute_in_thread, args=(task.pk,), daemon=True).start()
@@ -66,7 +117,7 @@ def execute_task(task_id: int) -> None:
     task.status = Task.Status.RUNNING
     task.save(update_fields=["status"])
     try:
-        validated = TextDiffParams.model_validate(task.params)
+        validated = TextDiffParams.model_validate(_core_params(task.params))
         result = run(validated.model_dump())
         task.result = result
         task.core_version = result.get("core_version", VERSION)

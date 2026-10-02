@@ -1,7 +1,7 @@
 import pytest
 from django.test import Client
 
-from tests.utils import login_new_user, wait_until_finished
+from tests.utils import login_new_user
 from web.models import Task
 
 
@@ -18,13 +18,12 @@ def params():
     }
 
 
-@pytest.mark.django_db(transaction=True)  # расчёт идёт в потоке (ADR-004)
+@pytest.mark.django_db
 def test_create_task_returns_202_and_computes(client):
     login_new_user(client)
     response = client.post("/api/tasks", {"name": "t", "params": params()}, content_type="application/json")
     assert response.status_code == 202
     task_id = response.json()["id"]
-    wait_until_finished(task_id)
     result_response = client.get(f"/api/tasks/{task_id}/result")
     assert result_response.status_code == 200
     assert result_response.json()["result"]["n_texts"] == 4
@@ -40,11 +39,10 @@ def test_bad_params_are_rejected_with_422(client):
     assert Task.objects.count() == 0
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_list_and_status(client):
     login_new_user(client)
-    response = client.post("/api/tasks", {"name": "x", "params": params()}, content_type="application/json")
-    wait_until_finished(response.json()["id"])
+    client.post("/api/tasks", {"name": "x", "params": params()}, content_type="application/json")
     assert len(client.get("/api/tasks").json()) == 1
     assert client.get("/api/tasks?status=done").json()[0]["status"] == "done"
     assert client.get("/api/tasks/999").status_code == 404
@@ -102,12 +100,11 @@ def test_anonymous_list_is_rejected_with_401(client):
     assert client.get("/api/tasks").status_code == 401
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_user_does_not_see_others_task_via_api(client):
     login_new_user(client, username="user1")
     response = client.post("/api/tasks", {"name": "секрет A", "params": params()}, content_type="application/json")
     task_id = response.json()["id"]
-    wait_until_finished(task_id)
 
     other_client = Client()
     login_new_user(other_client, username="user2")

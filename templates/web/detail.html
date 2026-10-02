@@ -19,7 +19,7 @@
   {% endif %}
   <h3>Группы</h3>
   <table>
-    <tr><th>Группа</th><th>Текстов</th><th>Средняя длина слов</th><th>Средний TTR</th><th>Средняя длина слова</th></tr>
+    <tr><th>Группа</th><th>Текстов</th><th>Средняя длина текста (слов)</th><th>Средний TTR</th><th>Средняя длина слова</th></tr>
     {% for name, stat in task.result.groups.items %}
     <tr><td>{{ name }}</td><td>{{ stat.n_texts }}</td><td>{{ stat.avg_len_words|floatformat:2 }}</td><td>{{ stat.avg_ttr|floatformat:4 }}</td><td>{{ stat.avg_word_len|floatformat:2 }}</td></tr>
     {% endfor %}

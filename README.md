@@ -37,6 +37,8 @@
         ↓
 Pydantic-схема проверяет вход ДО расчёта (две группы, слова в тексте, лимит нагрузки)
         ↓
+Входной CSV сохраняется файлом MEDIA_ROOT/inputs/task_<id>.csv; в Task.params — настройки и путь (ADR-006)
+        ↓
 Создаётся Task (status = created), владелец — текущий пользователь
         ↓
 Расчёт уходит в фоновый поток (или в очередь RQ при USE_QUEUE=1) → ответ 202 сразу
@@ -65,6 +67,9 @@ Pydantic-схема проверяет вход ДО расчёта (две гр
 
 **Выход:** таблица статистик по группам, значение статистики теста и p-value, топ частых слов, версия ядра и время расчёта.
 Для перестановочного теста — ещё число использованных перестановок и способ (точный перебор / случайная выборка).
+
+Сам CSV в базе не хранится: сервер сохраняет его файлом `MEDIA_ROOT/inputs/task_<id>.csv`, а в `Task.params` остаются настройки анализа,
+путь `input_file` и число строк `n_rows` (`docs/adr/006-csv-in-file.md`).
 
 Пример входа для ядра без веба: `python -m core example_input.json`.
 
@@ -141,11 +146,12 @@ Pydantic-схема проверяет вход ДО расчёта (две гр
 | `SECRET_KEY` | запасной ключ в коде | только из `.env`; нет ключа — сервер не стартует |
 | `DEBUG` | включён по умолчанию | выключен по умолчанию (`DEBUG=1` в `.env` для разработки) |
 | Версии зависимостей | `>=`, `scipy` без версии | все через `==` |
+| CSV в базе | файл 9,3 МБ → база 52,6 МБ (весь CSV в `Task.params`) | CSV — файлом в `MEDIA_ROOT/inputs/`, в базе только путь и настройки |
 
 **Принятые риски (не исправлено):**
 
-1. CSV целиком хранится в `Task.params` (JSON) — для учебного объёма работает, но раздувает базу и не масштабируется. План: вынести в файл (`MEDIA_ROOT`), оставив в `params` ссылку и настройки.
-2. Разные пределы размера: форма принимает до 10 МБ, API отклоняет тело больше 2,5 МБ (`400` от Django).
+1. Разные пределы размера: форма принимает до 10 МБ, API отклоняет тело больше 2,5 МБ (`400` от Django).
+2. Входной CSV не удаляется вместе с задачей: при удалении в админке файл остаётся в `media/inputs/` (`docs/adr/006-csv-in-file.md`).
 3. Поток живёт внутри процесса сервера: при перезапуске задача в статусе `running` навсегда остаётся «считается» (`docs/adr/004-thread-not-queue.md`). Для реальной нагрузки — очередь RQ (`USE_QUEUE=1`).
 
 ---
@@ -158,6 +164,10 @@ Pydantic-схема проверяет вход ДО расчёта (две гр
 Статусы: `created → running → done / failed`. Статус `queued` — только в режиме очереди RQ (`USE_QUEUE=1`, `web/jobs.py`).
 Страница задачи (`templates/web/detail.html`) перезагружается каждые 2 секунды, пока статус не `done` и не `failed`.
 Решение и его риск — `docs/adr/004-thread-not-queue.md`.
+
+**В тестах без потока.** Раньше сценарный тест изредка падал (примерно в одном запуске из восьми): тест и фоновый поток одновременно
+работали с базой данных. Теперь `tests/conftest.py` включает `TASKS_SYNC=1`: `create_task` считает задачу сразу, в том же потоке.
+Что обычный режим запускает поток, проверяет отдельный тест с подменой `Thread`. Для сервера `TASKS_SYNC` выключен.
 
 ---
 
@@ -185,20 +195,21 @@ core/                   — вычислительное ядро (без Django
   solver.py             — run(), TTR, статистики, свой permutation_test
   schemas.py            — Pydantic-схемы входа/выхода, проверки, LIMIT
   __main__.py           — CLI: python -m core input.json
-  tests/                — тесты ядра (эталон 2/6, seed, равные группы)
+  tests/                — тесты ядра (эталон 2/6, seed, равные группы, TTR и длина текста)
 api/api.py              — REST API на Django Ninja, только свои задачи, auth=django_auth
 web/                    — Django-приложение
   models.py             — модель Task (owner, params, status, result, error)
   forms.py              — форма загрузки CSV
   views.py              — HTML-представления (@login_required)
-  services.py           — parse_csv_file / create_task / execute_task, фоновые потоки
+  services.py           — parse_csv_file / create_task / execute_task, сохранение входного CSV в файл, фоновые потоки
   jobs.py               — очередь RQ (режим USE_QUEUE=1)
   admin.py, urls.py, migrations/, management/commands/rqworker.py
 templates/              — base.html, registration/login.html, web/list.html, form.html, detail.html
-tests/                  — тесты API и сценария «через сайт»
+media/inputs/           — входные CSV задач (создаётся при работе, в git не попадает)
+tests/                  — тесты API, сценария «через сайт» и сервисного слоя; conftest.py — расчёт без потока
 sample_data/            — примеры CSV (одинаковые, разные, невалидные группы)
 warmup/                 — учебная разминка (pytest warmup)
-docs/                   — architecture.md, er-diagram.md, fat_review.md, security_review.md, adr/
+docs/                   — architecture.md, api.md, er-diagram.md, fat_review.md, security_review.md, adr/
 measure.py              — замер времени расчёта
 .github/workflows/ci.yml — CI (ruff + pytest)
 Dockerfile, docker-compose.yml, AGENTS.md, README_STARTER.md, example_input.json, pytest.ini, pyproject.toml, requirements.txt
@@ -237,13 +248,15 @@ python manage.py runserver
 
 | Команда | Что делает |
 | --- | --- |
-| `pytest -q` | все тесты (23) |
-| `pytest core -q` | только ядро (9) |
+| `pytest -q` | все тесты (31) |
+| `pytest core -q` | только ядро (11) |
 | `ruff check .` | проверка стиля |
 | `python -m core example_input.json` | запуск ядра без веба |
 
-Тесты ядра — `core/tests/test_solver.py` (эталон, воспроизводимость `seed`, равные группы).
+Тесты ядра — `core/tests/test_solver.py` (11): эталон, воспроизводимость `seed`, равные группы, зависимость TTR от длины текста.
 Тесты API и сценария — `tests/test_api.py` (9) и `tests/test_scenario.py` (5): создание задачи, `422` на плохой вход, `401` для анонима, «Пользователь 2 не видит задачу Пользователя 1» (и в вебе, и в API), путь «CSV → готово → есть p-value».
+Тесты сервисного слоя — `tests/test_services.py` (6): CSV лежит файлом, а в базе только путь; запись и чтение CSV с запятыми, кавычками и переносами строк; старые задачи без файла; пропавший файл → `failed`; путь вне `inputs/` отклоняется; обычный режим запускает фоновый поток.
+Все тесты в `tests/` считают задачи без потока (`TASKS_SYNC=1` в `tests/conftest.py`) и пишут файлы во временную папку.
 
 CI (`.github/workflows/ci.yml`): на каждый `push` и `pull_request` — Python 3.12, `pip install -r requirements.txt`, `ruff check .`, `pytest -q`.
 В CI задан `SECRET_KEY`, потому что `.env` там нет.
@@ -258,7 +271,8 @@ CI (`.github/workflows/ci.yml`): на каждый `push` и `pull_request` — 
 
 ## Документация
 
-* [`docs/architecture.md`](docs/architecture.md) — архитектурный документ.
+* [`docs/architecture.md`](docs/architecture.md) — архитектурный документ (12 разделов: контекст, контейнеры, модель данных, ядро и его ограничения, безопасность, развёртывание, эксплуатация, ретроспектива).
+* [`docs/api.md`](docs/api.md) — описание REST API: эндпоинты, примеры запросов и ответов, коды ошибок.
 * [`docs/er-diagram.md`](docs/er-diagram.md) — ER-диаграмма (`User` — `Task`).
 * [`docs/security_review.md`](docs/security_review.md) — проверка безопасности, 8 пунктов.
 * [`docs/fat_review.md`](docs/fat_review.md) — разбор «толстой» функции.
@@ -267,6 +281,16 @@ CI (`.github/workflows/ci.yml`): на каждый `push` и `pull_request` — 
 * [`docs/adr/003-input-and-execution.md`](docs/adr/003-input-and-execution.md) — ADR-003: формат входа и выполнение.
 * [`docs/adr/004-thread-not-queue.md`](docs/adr/004-thread-not-queue.md) — ADR-004: поток, а не очередь.
 * [`docs/adr/005-access-control.md`](docs/adr/005-access-control.md) — ADR-005: задача видна только владельцу.
+* [`docs/adr/006-csv-in-file.md`](docs/adr/006-csv-in-file.md) — ADR-006: входной CSV — файлом на диске, в базе — путь.
+
+---
+
+## Ограничение метода: длина текстов и TTR
+
+Доля разных слов (TTR) падает, когда текст длиннее: чем больше слов, тем чаще они повторяются, даже если словарь не изменился.
+Поэтому при разной средней длине текстов в группах сравнение по TTR нечестное: часть разницы создаёт сама длина, а не разнообразие лексики.
+Средняя длина текстов по группам показывается на странице результата и в API (`avg_len_words`), и перед выводом её нужно сравнить.
+Эффект зафиксирован тестами (`test_ttr_drops_when_text_gets_longer`), подробно — `docs/architecture.md`, разделы 7 и 12.
 
 ---
 
@@ -285,16 +309,16 @@ CI (`.github/workflows/ci.yml`): на каждый `push` и `pull_request` — 
 
 | Участник | Роль | Вклад |
 | --- | --- | --- |
-| **Ахмадов Магомед** | Core | вычислительное ядро: `core/solver.py`, `core/schemas.py`, `core/tests/` |
-| **Зайналабдиев Рамзан** | Backend | сервисный слой, views, настройки, замеры, CI: `web/services.py`, `web/views.py`, `config/`, `measure.py`, `tests/test_scenario.py`, `.github/workflows/ci.yml` |
-| **Джамиев Амин** | Frontend + Docs | шаблоны, ADR, README, разборы: `templates/`, `docs/adr/`, `docs/security_review.md`, `README.md` |
-| **Темирсултанов Магомед** | API | REST API на Django Ninja и его тесты: `api/api.py`, `tests/test_api.py` |
+| **Ахмадов Магомед** | Core | вычислительное ядро: `core/solver.py`, `core/schemas.py`, `core/tests/` (в том числе тесты зависимости TTR от длины текста) |
+| **Зайналабдиев Рамзан** | Backend | сервисный слой, views, настройки, замеры, CI: `web/services.py` (в том числе CSV в файл), `web/views.py`, `config/`, `measure.py`, `tests/test_scenario.py`, `tests/conftest.py`, `tests/test_services.py`, `.github/workflows/ci.yml` |
+| **Джамиев Амин** | Frontend + Docs | шаблоны, ADR, README, разборы: `templates/`, `docs/adr/`, `docs/architecture.md`, `docs/security_review.md`, `README.md` |
+| **Темирсултанов Магомед** | API | REST API на Django Ninja, его тесты и описание: `api/api.py`, `tests/test_api.py`, `docs/api.md` |
 
 ### Вклад участников по этапам
 
-| Участник | Реперная точка 21.09 | Пара 11–12 (30.09) | Пара 13–15 (01.10) |
-| --- | --- | --- | --- |
-| **Ахмадов Магомед** (Core) | `permutation_test` — собственный перестановочный тест (точный перебор / выборка с `seed`); подключил третьим вариантом `test` в `run()`; эталон `[1,1]/[3,3] → 2/6`; тест воспроизводимости `seed` | `core/schemas.py`: ровно две группы, текст без слов с номером строки CSV, `LIMIT` на строк × перестановок; `WORD_RE` перенёс из solver в схему | Доступ ядра не касается — `core` по-прежнему не знает про Django и пользователей; защита эталона `2/6`, проверки входа из безопасности |
-| **Зайналабдиев Рамзан** (Backend) | — | `web/services.py`: расчёт в потоке (`create_task` отвечает сразу, `execute_task` в фоне); `measure.py` — замер 100 / 1000 / 4000 текстов; веб-тесты ждут конца задачи | `@login_required` и фильтр по `owner` (`web/views.py`); `accounts/` в `config/urls.py`; `SECRET_KEY` без запасного значения и `DEBUG` выключен по умолчанию; версии через `==`; `ci.yml`; тест «CSV → готово → p-value» |
-| **Джамиев Амин** (Frontend + Docs) | `templates/web/detail.html` — вывод числа перестановок и способа (точный перебор / выборка) | автообновление страницы задачи (`meta refresh`); ADR-004 «поток, а не очередь»; таблица замера и «границы входа» в README | `templates/registration/login.html`, ссылки «Войти / Выйти» и имя пользователя в шапке; ADR-005; `docs/security_review.md` (8 пунктов); разделы README |
-| **Темирсултанов Магомед** (API) | — | `tests/test_api.py`: `202` и статус `created`; три теста на плохой вход (три группы → `422` с `rows`, текст без слов → `422` с номером строки, 50 000 × 200 000 → `422`) | `django_auth` на весь API (аноним → `401`); фильтр по `owner` в списке / статусе / результате (чужая → `404`); тесты на доступ; проверка в `/api/docs` (`422`, `400` на тело > 2,5 МБ, `401`) |
+| Участник | Реперная точка 21.09 | Пара 11–12 (30.09) | Пара 13–15 (01.10) | Доработка 02.10 |
+| --- | --- | --- | --- | --- |
+| **Ахмадов Магомед** (Core) | `permutation_test` — собственный перестановочный тест (точный перебор / выборка с `seed`); подключил третьим вариантом `test` в `run()`; эталон `[1,1]/[3,3] → 2/6`; тест воспроизводимости `seed` | `core/schemas.py`: ровно две группы, текст без слов с номером строки CSV, `LIMIT` на строк × перестановок; `WORD_RE` перенёс из solver в схему | Доступ ядра не касается — `core` по-прежнему не знает про Django и пользователей; защита эталона `2/6`, проверки входа из безопасности | тесты `test_ttr_drops_when_text_gets_longer` и `test_groups_with_different_text_length_differ_in_ttr_even_with_same_vocabulary`: фиксируют, что TTR падает с длиной текста; материал для разделов 7 и 12 архитектурного документа |
+| **Зайналабдиев Рамзан** (Backend) | — | `web/services.py`: расчёт в потоке (`create_task` отвечает сразу, `execute_task` в фоне); `measure.py` — замер 100 / 1000 / 4000 текстов; веб-тесты ждут конца задачи | `@login_required` и фильтр по `owner` (`web/views.py`); `accounts/` в `config/urls.py`; `SECRET_KEY` без запасного значения и `DEBUG` выключен по умолчанию; версии через `==`; `ci.yml`; тест «CSV → готово → p-value» | расчёт без потока в тестах (`TASKS_SYNC`, `tests/conftest.py`) — сценарный тест больше не падает; CSV в файл вместо базы (`web/services.py`, ADR-006) и `tests/test_services.py` (6 тестов) |
+| **Джамиев Амин** (Frontend + Docs) | `templates/web/detail.html` — вывод числа перестановок и способа (точный перебор / выборка) | автообновление страницы задачи (`meta refresh`); ADR-004 «поток, а не очередь»; таблица замера и «границы входа» в README | `templates/registration/login.html`, ссылки «Войти / Выйти» и имя пользователя в шапке; ADR-005; `docs/security_review.md` (8 пунктов); разделы README | заполнен `docs/architecture.md` (12 разделов); ADR-006; название сервиса вместо «Calc Service» в `templates/base.html`; подпись колонки «Средняя длина текста (слов)»; README и `security_review.md` (п. 3 закрыт) |
+| **Темирсултанов Магомед** (API) | — | `tests/test_api.py`: `202` и статус `created`; три теста на плохой вход (три группы → `422` с `rows`, текст без слов → `422` с номером строки, 50 000 × 200 000 → `422`) | `django_auth` на весь API (аноним → `401`); фильтр по `owner` в списке / статусе / результате (чужая → `404`); тесты на доступ; проверка в `/api/docs` (`422`, `400` на тело > 2,5 МБ, `401`) | `docs/api.md` (эндпоинты, примеры, коды ошибок); название и описание API в `api/api.py`; тесты API переведены на расчёт без потока |

@@ -25,6 +25,10 @@ ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(","
 USE_QUEUE = os.environ.get("USE_QUEUE", "0") == "1"
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
+# Считать задачи сразу в запросе, без потока. Нужно только тестам (tests/conftest.py): иначе тест и фоновый
+# поток одновременно работают с базой данных, и сценарные тесты изредка падают (ADR-004).
+TASKS_SYNC = os.environ.get("TASKS_SYNC", "0") == "1"
+
 # --- приложения --------------------------------------------------------------
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -100,7 +104,7 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Файлы результатов (большие массивы) — не в БД, а на диске. См. занятие 7.
+# Большие данные — не в БД, а на диске: входные CSV задач (MEDIA_ROOT/inputs/, ADR-006) и файлы результатов.
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 

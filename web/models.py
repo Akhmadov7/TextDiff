@@ -5,8 +5,9 @@ from django.db import models
 class Task(models.Model):
     """
     Расчётная задача. Модель данных проекта — см. занятие 7.
-    Параметры и результат хранятся как JSON: для учебной заготовки достаточно.
-    Большие массивы (тысячи точек, файлы) в JSON-поле класть НЕЛЬЗЯ — для них есть result_file (MEDIA_ROOT).
+    Параметры и результат хранятся как JSON. Входной CSV в базу не кладётся (ADR-006): он лежит файлом
+    в MEDIA_ROOT/inputs/, а в params хранятся настройки анализа и путь к файлу (input_file).
+    Большие результаты — в result_file (MEDIA_ROOT).
     """
 
     class Status(models.TextChoices):
