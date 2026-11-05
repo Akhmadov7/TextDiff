@@ -7,21 +7,40 @@
   <p><strong>Статус:</strong> {{ task.get_status_display }}</p>
   {% if task.error %}<p class="status-failed"><strong>Ошибка:</strong> {{ task.error }}</p>{% endif %}
 </div>
+<h2>Параметры</h2>
+<table class="params">
+  <tr><th>Статистический тест</th><td>{{ test_name }}</td></tr>
+  <tr><th>Число слов в топе</th><td>{{ task.params.top_n }}</td></tr>
+  {% if task.params.test == "permutation" %}
+  <tr><th>Число перестановок</th><td>{{ task.params.n_permutations }}</td></tr>
+  <tr><th>Seed</th><td>{{ task.params.seed }}</td></tr>
+  {% endif %}
+</table>
 {% if task.result %}
   <h2>Результат</h2>
-  <p>Всего текстов: {{ task.result.n_texts }}</p>
-  <p>Тест: {{ task.result.test }}</p>
-  <p>Статистика: {{ task.result.statistic }}</p>
-  <p>p-value: {{ task.result.pvalue }}</p>
-  {% if task.result.permutations_used %}
-  <p>Перестановок использовано: {{ task.result.permutations_used }}
-    ({% if task.result.permutations_exact %}точный перебор{% else %}случайная выборка{% endif %})</p>
+  {% if differ is not None %}
+  <div class="verdict{% if not differ %} same{% endif %}">
+    {% if differ %}Группы различаются: p-value меньше 0,05, различие статистически значимо.
+    {% else %}Группы не различаются: p-value не меньше 0,05, значимого различия нет.{% endif %}
+  </div>
+  {% else %}
+  <div class="verdict same">p-value посчитать не удалось, вывод о различии групп сделать нельзя.</div>
   {% endif %}
+  <table class="params">
+    <tr><th>Всего текстов</th><td>{{ task.result.n_texts }}</td></tr>
+    <tr><th>Тест</th><td>{{ test_result_name }}</td></tr>
+    <tr><th>Статистика</th><td>{{ task.result.statistic|floatformat:3|default:"—" }}</td></tr>
+    <tr><th>p-value</th><td>{% if pvalue_percent is not None %}{{ pvalue_percent|floatformat:2 }} %{% else %}—{% endif %}</td></tr>
+    {% if task.result.permutations_used %}
+    <tr><th>Перестановок использовано</th><td>{{ task.result.permutations_used }}
+      ({% if task.result.permutations_exact %}точный перебор{% else %}случайная выборка{% endif %})</td></tr>
+    {% endif %}
+  </table>
   <h3>Группы</h3>
   <table>
     <tr><th>Группа</th><th>Текстов</th><th>Средняя длина текста (слов)</th><th>Средний TTR</th><th>Средняя длина слова</th></tr>
     {% for name, stat in task.result.groups.items %}
-    <tr><td>{{ name }}</td><td>{{ stat.n_texts }}</td><td>{{ stat.avg_len_words|floatformat:2 }}</td><td>{{ stat.avg_ttr|floatformat:4 }}</td><td>{{ stat.avg_word_len|floatformat:2 }}</td></tr>
+    <tr><td>{{ name }}</td><td>{{ stat.n_texts }}</td><td>{{ stat.avg_len_words|floatformat:2 }}</td><td>{{ stat.avg_ttr|floatformat:3 }}</td><td>{{ stat.avg_word_len|floatformat:2 }}</td></tr>
     {% endfor %}
   </table>
   <h3>Частые слова</h3>

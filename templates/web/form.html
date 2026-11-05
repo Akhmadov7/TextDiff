@@ -6,7 +6,14 @@
   <p>Загрузите CSV с колонками текста и группы.</p>
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    {{ form.as_p }}
+    {% for field in form %}
+    <div class="form-row">
+      {{ field.label_tag }}
+      {{ field }}
+      {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}
+      {{ field.errors }}
+    </div>
+    {% endfor %}
     <button type="submit">Запустить расчёт</button>
   </form>
 </div>

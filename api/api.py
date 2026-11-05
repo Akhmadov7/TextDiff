@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404
 from ninja import NinjaAPI, Schema
 from ninja.responses import Status
 from ninja.security import django_auth
+from pydantic import Field
 
 from core.schemas import TextDiffParams
 from web import services
@@ -28,7 +29,7 @@ api = NinjaAPI(
 
 
 class TaskIn(Schema):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     params: dict[str, Any]
 
 

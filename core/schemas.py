@@ -4,7 +4,7 @@ import re
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 WORD_RE = re.compile(r"[а-яa-zё]+", re.IGNORECASE)  # что считается словом (используют схема и solver)
-LIMIT = 40_000_000  # граница входа: строк × перестановок (по замеру ≈ 10–15 секунд, см. README)
+LIMIT = 10_000_000  # граница входа: строк × перестановок (замер: ≈ 3 с у нас, ≈ 11 с на машине проверки)
 
 
 class Row(BaseModel):

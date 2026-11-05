@@ -85,6 +85,22 @@ def test_too_big_input_is_rejected_with_422(client):
     assert Task.objects.count() == 0
 
 
+@pytest.mark.django_db
+def test_too_long_name_is_rejected_with_422(client):
+    login_new_user(client)
+    response = client.post("/api/tasks", {"name": "x" * 201, "params": params()}, content_type="application/json")
+    assert response.status_code == 422
+    assert Task.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_empty_name_is_rejected_with_422(client):
+    login_new_user(client)
+    response = client.post("/api/tasks", {"name": "", "params": params()}, content_type="application/json")
+    assert response.status_code == 422
+    assert Task.objects.count() == 0
+
+
 # --- доступ (пара 13): весь API только для вошедших, чужая задача = 404 ----------------------------------------
 
 

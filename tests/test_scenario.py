@@ -57,6 +57,18 @@ def test_task_reaches_done_and_has_pvalue(client):
     assert task.result["pvalue"] is not None
 
 
+@pytest.mark.django_db
+def test_result_page_is_in_russian_and_numbers_are_rounded(client):
+    login_new_user(client)
+    response = _upload(client, name="view-check", test="permutation")
+    html = client.get(response.headers["Location"]).content.decode()
+    assert "Перестановочный" in html
+    assert "permutation" not in html
+    assert "Группы не различаются" in html or "Группы различаются" in html
+    assert "0.70833" not in html and "0,70833" not in html
+    assert "%" in html
+
+
 # --- доступ (пара 13): вход обязателен, чужая задача = 404 -----------------------------------------------------
 
 

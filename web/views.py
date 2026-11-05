@@ -5,6 +5,12 @@ from web import services
 from web.forms import TaskForm
 from web.models import Task
 
+TEST_NAMES = {
+    "mannwhitney": "Манна—Уитни",
+    "ttest": "t-критерий",
+    "permutation": "Перестановочный",
+}
+
 
 @login_required
 def task_list(request):
@@ -38,4 +44,11 @@ def task_create(request):
 @login_required
 def task_detail(request, pk: int):
     task = get_object_or_404(Task, pk=pk, owner=request.user)
-    return render(request, "web/detail.html", {"task": task})
+    context = {"task": task, "test_name": TEST_NAMES.get(task.params.get("test"), task.params.get("test"))}
+    if task.result:
+        pvalue = task.result.get("pvalue")
+        context["test_result_name"] = TEST_NAMES.get(task.result.get("test"), task.result.get("test"))
+        if pvalue is not None:
+            context["pvalue_percent"] = pvalue * 100
+            context["differ"] = pvalue < 0.05
+    return render(request, "web/detail.html", context)

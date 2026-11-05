@@ -6,6 +6,11 @@ from core.solver import run
 
 
 def main(argv: list[str]) -> int:
+    if argv and argv[0] in ("-h", "--help"):
+        print("Использование: python -m core input.json [output.json]\n"
+              "Читает вход задачи из input.json, печатает результат (или пишет в output.json).\n"
+              "Пример входа: example_input.json")
+        return 0
     if not argv:
         print("Использование: python -m core input.json [output.json]", file=sys.stderr)
         return 2

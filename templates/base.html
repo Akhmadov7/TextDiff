@@ -1,23 +1,17 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <title>{% block title %}TextDiff — сравнение текстовых корпусов{% endblock %}</title>
 {% block head %}{% endblock %}
-<style>
-  body{font-family:system-ui,Arial,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;color:#1f1f1f}
-  nav a{margin-right:1rem} table{border-collapse:collapse;width:100%} td,th{border-bottom:1px solid #ddd;padding:.4rem;text-align:left}
-  .status-done{color:#2e7d32}.status-failed{color:#c62828}.status-running,.status-queued{color:#d9822b}
-  form p{margin:.4rem 0} input,select{padding:.3rem} button{padding:.4rem 1rem}
-  .card{background:#f3f4f6;border-radius:8px;padding:1rem;margin:1rem 0}
-</style>
+<link rel="stylesheet" href="{% static 'web/style.css' %}">
 </head>
 <body>
 <nav>
-<strong style="margin-right:1rem">TextDiff</strong><a href="{% url 'task_list' %}">Задачи</a><a href="{% url 'task_create' %}">Новая задача</a><a href="/api/docs">API</a><a href="/admin/">Админка</a>
+<strong>TextDiff</strong> <a href="{% url 'task_list' %}">Задачи</a><a href="{% url 'task_create' %}">Новая задача</a><a href="/api/docs">API</a><a href="/admin/">Админка</a>
 {% if user.is_authenticated %}
-<span>{{ user.username }}</span>
-<form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button type="submit">Выйти</button></form>
+<span class="user">{{ user.username }}</span>
+<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Выйти</button></form>
 {% else %}
 <a href="{% url 'login' %}">Войти</a>
 {% endif %}
