@@ -1,7 +1,7 @@
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-exclude = ["web/migrations"]
+extend-exclude = ["web/migrations"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

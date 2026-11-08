@@ -24,7 +24,7 @@ api = NinjaAPI(
         "получите метрики (длина, TTR, длина слова, частые слова) и p-value теста о различии групп. "
         "Подробное описание: docs/api.md."
     ),
-    auth=django_auth,  # весь API только после входа; аноним получает 401
+    auth=django_auth,
 )
 
 
@@ -57,7 +57,7 @@ def create_task(request, payload: TaskIn):
         validated = TextDiffParams.model_validate(payload.params)
     except Exception as exc:  # noqa: BLE001
         return Status(422, {"detail": str(exc)})
-    owner = request.user  # django_auth гарантирует, что сюда анонимный пользователь не попадёт
+    owner = request.user
     task = services.create_task(payload.name, validated.model_dump(), owner=owner)
     return Status(202, task)
 

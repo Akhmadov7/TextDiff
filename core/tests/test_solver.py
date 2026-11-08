@@ -92,7 +92,6 @@ def test_identical_groups_show_no_difference():
     assert result["pvalue"] >= 0.9
 
 
-# --- ограничение метрики TTR (docs/architecture.md, разделы 7 и 12) -------------------------------------------
 
 VOCABULARY = ["кот", "пёс", "дом", "лес", "река", "поле", "луг", "мост", "сад", "холм"]
 

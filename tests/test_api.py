@@ -48,7 +48,6 @@ def test_list_and_status(client):
     assert client.get("/api/tasks/999").status_code == 404
 
 
-# --- плохой вход (пара 12): 422 и ни одной созданной задачи ---------------------------------------------------
 
 
 @pytest.mark.django_db
@@ -101,7 +100,6 @@ def test_empty_name_is_rejected_with_422(client):
     assert Task.objects.count() == 0
 
 
-# --- доступ (пара 13): весь API только для вошедших, чужая задача = 404 ----------------------------------------
 
 
 @pytest.mark.django_db

@@ -49,7 +49,6 @@ def test_user_creates_task_with_permutation_test(client):
 
 @pytest.mark.django_db
 def test_task_reaches_done_and_has_pvalue(client):
-    # пара 15: отправили CSV -> задача дошла до «готово» -> в результате есть p-value
     login_new_user(client)
     response = _upload(client, name="done-check")
     task = Task.objects.get(pk=_task_id(response))
@@ -69,7 +68,6 @@ def test_result_page_is_in_russian_and_numbers_are_rounded(client):
     assert "%" in html
 
 
-# --- доступ (пара 13): вход обязателен, чужая задача = 404 -----------------------------------------------------
 
 
 @pytest.mark.django_db

@@ -12,9 +12,9 @@ from core import VERSION, run
 from core.schemas import TextDiffParams
 from web.models import Task
 
-INPUT_DIR = "inputs"  # подпапка MEDIA_ROOT, куда кладутся входные CSV задач (ADR-006)
+INPUT_DIR = "inputs"
 
-# Текст по схеме — до 200 000 символов, а стандартный предел модуля csv — 131 072 символа в ячейке.
+# в схеме текст до 200 000 символов, а стандартный предел csv — 131 072
 csv.field_size_limit(1_000_000)
 
 
@@ -84,7 +84,7 @@ def _core_params(params: dict) -> dict:
 def create_task(name: str, params: dict, owner=None) -> Task:
     validated = TextDiffParams.model_validate(params)
     settings_only = validated.model_dump()
-    rows = settings_only.pop("rows")  # CSV в базу не кладём: в params остаются настройки и путь к файлу
+    rows = settings_only.pop("rows")
     task = Task.objects.create(name=name, params=settings_only, owner=owner)
     try:
         task.params["input_file"] = save_input_file(task.pk, rows)
@@ -98,9 +98,8 @@ def create_task(name: str, params: dict, owner=None) -> Task:
 
         enqueue_task(task.pk)
     elif settings.TASKS_SYNC:
-        execute_task(task.pk)  # только для тестов: без потока тест не делит базу с фоновым потоком
+        execute_task(task.pk)
     else:
-        # ADR-004: расчёт в потоке — запрос отвечает сразу, статус меняется сам
         threading.Thread(target=_execute_in_thread, args=(task.pk,), daemon=True).start()
     return task
 
@@ -109,7 +108,7 @@ def _execute_in_thread(task_id: int) -> None:
     try:
         execute_task(task_id)
     finally:
-        connection.close()  # у потока своё подключение к БД — закрываем, когда закончили
+        connection.close()
 
 
 def execute_task(task_id: int) -> None:

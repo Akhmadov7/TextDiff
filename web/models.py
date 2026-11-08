@@ -18,7 +18,7 @@ class Task(models.Model):
         FAILED = "failed", "Ошибка"
 
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tasks",
-                              null=True, blank=True)  # заезд 2: станет обязательным (занятие 13)
+                              null=True, blank=True)
     name = models.CharField("Название", max_length=200)
     params = models.JSONField("Параметры", default=dict)
     status = models.CharField("Статус", max_length=16, choices=Status.choices, default=Status.CREATED)

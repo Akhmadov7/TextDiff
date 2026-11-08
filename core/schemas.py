@@ -3,8 +3,8 @@ import re
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-WORD_RE = re.compile(r"[а-яa-zё]+", re.IGNORECASE)  # что считается словом (используют схема и solver)
-LIMIT = 10_000_000  # граница входа: строк × перестановок (замер: ≈ 3 с у нас, ≈ 11 с на машине проверки)
+WORD_RE = re.compile(r"[а-яa-zё]+", re.IGNORECASE)
+LIMIT = 10_000_000  # строк × перестановок, см. README
 
 
 class Row(BaseModel):
@@ -29,13 +29,12 @@ class TextDiffParams(BaseModel):
             raise ValueError(f"Нужно ровно две группы текстов для сравнения, найдено: {len(groups)}")
         for index, row in enumerate(rows):
             if not WORD_RE.search(row.text):
-                # +2: первая строка CSV — заголовок, нумерация строк данных идёт с 2 (как в services.parse_csv_file)
+                # +2: первая строка CSV — заголовок
                 raise ValueError(f"Строка {index + 2}: в тексте нет ни одного слова")
         return rows
 
     @model_validator(mode="after")
     def work_is_within_limit(self):
-        # n_permutations влияет на время расчёта только у перестановочного теста
         if self.test == "permutation" and len(self.rows) * self.n_permutations > LIMIT:
             raise ValueError(
                 f"Слишком большой расчёт: строк × перестановок = {len(self.rows) * self.n_permutations}, "

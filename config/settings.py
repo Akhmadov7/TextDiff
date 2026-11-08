@@ -8,7 +8,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- окружение ---------------------------------------------------------------
-# Простейшая загрузка .env без сторонних пакетов (чтобы заготовка работала «из коробки»).
+# загрузка .env без сторонних пакетов
 _env_file = BASE_DIR / ".env"
 if _env_file.exists():
     for _line in _env_file.read_text(encoding="utf-8").splitlines():
@@ -17,16 +17,14 @@ if _env_file.exists():
             _k, _v = _line.split("=", 1)
             os.environ.setdefault(_k.strip(), _v.strip())
 
-SECRET_KEY = os.environ["SECRET_KEY"]  # без запасного значения: нет ключа в .env — сервер не запустится
-DEBUG = os.environ.get("DEBUG", "0") == "1"  # по умолчанию выключен; для разработки DEBUG=1 в .env
+SECRET_KEY = os.environ["SECRET_KEY"]
+DEBUG = os.environ.get("DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# Флаг заезда 2: выполнять расчёт в очереди (RQ + Redis) или синхронно прямо в запросе.
 USE_QUEUE = os.environ.get("USE_QUEUE", "0") == "1"
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
-# Считать задачи сразу в запросе, без потока. Нужно только тестам (tests/conftest.py): иначе тест и фоновый
-# поток одновременно работают с базой данных, и сценарные тесты изредка падают (ADR-004).
+# считать задачу без потока: включается только в тестах (ADR-004)
 TASKS_SYNC = os.environ.get("TASKS_SYNC", "0") == "1"
 
 # --- приложения --------------------------------------------------------------
@@ -42,7 +40,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # отдаёт static (style.css) под gunicorn при DEBUG=0
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -71,8 +69,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # --- база данных -------------------------------------------------------------
-# По умолчанию SQLite (разработка). Для PostgreSQL задайте DATABASE_URL вида
-# postgres://user:pass@host:5432/dbname — см. docker-compose.yml.
+# SQLite по умолчанию, PostgreSQL — если задан DATABASE_URL
 _db_url = os.environ.get("DATABASE_URL", "")
 if _db_url.startswith("postgres"):
     from urllib.parse import urlparse
@@ -104,8 +101,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT.mkdir(exist_ok=True)
 
-# Большие данные — не в БД, а на диске: входные CSV задач (MEDIA_ROOT/inputs/, ADR-006) и файлы результатов.
+# входные CSV задач лежат на диске (ADR-006)
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 

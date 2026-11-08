@@ -33,7 +33,7 @@ def task_create(request):
                 "n_permutations": form.cleaned_data["n_permutations"],
                 "seed": form.cleaned_data["seed"],
             }
-            owner = request.user  # @login_required гарантирует, что сюда анонимный пользователь не попадёт
+            owner = request.user
             task = services.create_task(form.cleaned_data["name"], params, owner=owner)
             return redirect("task_detail", pk=task.pk)
         except ValueError as exc:

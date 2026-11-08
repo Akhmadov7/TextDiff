@@ -16,7 +16,6 @@ def make_params(n_per_group: int = 2) -> dict:
     return {"rows": rows, "test": "mannwhitney", "top_n": 5}
 
 
-# --- CSV в файл, а не в базу (ADR-006) -----------------------------------------------------------------------
 
 
 @pytest.mark.django_db
@@ -78,7 +77,6 @@ def test_input_path_outside_inputs_folder_is_rejected(settings):
     assert "inputs" in task.error
 
 
-# --- фоновый поток (ADR-004) ---------------------------------------------------------------------------------
 
 
 @pytest.mark.django_db

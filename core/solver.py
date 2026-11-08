@@ -23,47 +23,39 @@ def ttr(text: str) -> float:
     return len(set(words)) / len(words) if words else 0.0
 
 
-def _text_stats(text: str) -> tuple[int, float, float]:
-    words = _tokenize(text)
-    count = len(words)
-    if count == 0:
-        return 0, 0.0, 0.0
-    text_ttr = ttr(text)
-    avg_word_len = sum(len(word) for word in words) / count
-    return count, text_ttr, avg_word_len
+def _mean_diff(a: list[float], b: list[float]) -> float:
+    return abs(sum(a) / len(a) - sum(b) / len(b))
 
 
 def permutation_test(group_a: list[float], group_b: list[float], n_permutations: int, seed: int) -> dict:
     """Перестановочный тест: [1,1] vs [3,3] -> pvalue == 2/6 (см. тесты)."""
     pooled = list(group_a) + list(group_b)
-    n, na = len(pooled), len(group_a)
-    observed = abs(sum(group_a) / na - sum(group_b) / (n - na))
+    na = len(group_a)
+    observed = _mean_diff(group_a, group_b)
 
-    total = comb(n, na)
+    total = comb(len(pooled), na)
+    diffs = []
     if total <= n_permutations:
-        diffs = []
-        for idx in itertools.combinations(range(n), na):
-            idx_set = set(idx)
-            a = [pooled[i] for i in idx_set]
-            b = [pooled[i] for i in range(n) if i not in idx_set]
-            diffs.append(abs(sum(a) / na - sum(b) / (n - na)))
+        for idx in itertools.combinations(range(len(pooled)), na):
+            a = [pooled[i] for i in idx]
+            b = [pooled[i] for i in range(len(pooled)) if i not in idx]
+            diffs.append(_mean_diff(a, b))
         used, exact = total, True
     else:
         rng = random.Random(seed)
-        diffs = []
         for _ in range(n_permutations):
             shuffled = pooled[:]
             rng.shuffle(shuffled)
-            a, b = shuffled[:na], shuffled[na:]
-            diffs.append(abs(sum(a) / na - sum(b) / (n - na)))
+            diffs.append(_mean_diff(shuffled[:na], shuffled[na:]))
         used, exact = n_permutations, False
 
     at_least = sum(1 for d in diffs if d >= observed - 1e-9)
-    if exact:
-        pvalue = at_least / used
-    else:
-        pvalue = (at_least + 1) / (used + 1)
+    pvalue = at_least / used if exact else (at_least + 1) / (used + 1)
     return {"statistic": observed, "pvalue": pvalue, "used": used, "exact": exact}
+
+
+def _nan_to_none(value: float) -> float | None:
+    return None if math.isnan(value) or math.isinf(value) else value
 
 
 def run(params: dict) -> dict:
@@ -72,20 +64,16 @@ def run(params: dict) -> dict:
     started = perf_counter()
 
     by_group: dict[str, dict[str, list[float]]] = {}
-    ttr_by_group: dict[str, list[float]] = {}
     words = Counter()
 
     for row in validated.rows:
         tokenized = _tokenize(row.text)
         count = len(tokenized)
-        row_ttr = ttr(row.text)
-        avg_word_len = sum(map(len, tokenized)) / count if count else 0.0
         words.update(tokenized)
         bucket = by_group.setdefault(row.group, {"n": [], "ttr": [], "avg_len": []})
         bucket["n"].append(count)
-        bucket["ttr"].append(row_ttr)
-        bucket["avg_len"].append(avg_word_len)
-        ttr_by_group.setdefault(row.group, []).append(row_ttr)
+        bucket["ttr"].append(len(set(tokenized)) / count)
+        bucket["avg_len"].append(sum(map(len, tokenized)) / count)
 
     groups = {}
     for group, values in by_group.items():
@@ -97,29 +85,22 @@ def run(params: dict) -> dict:
             "avg_word_len": sum(values["avg_len"]) / count,
         }
 
-    group_names = list(ttr_by_group)
     statistic = pvalue = None
     perm_used = perm_exact = None
-    if len(group_names) == 2:
-        first, second = (ttr_by_group[group_names[0]], ttr_by_group[group_names[1]])
-        if validated.test == "permutation":
-            perm = permutation_test(first, second, validated.n_permutations, validated.seed)
-            statistic, pvalue = perm["statistic"], perm["pvalue"]
-            perm_used, perm_exact = perm["used"], perm["exact"]
+    first, second = (values["ttr"] for values in by_group.values())
+    if validated.test == "permutation":
+        perm = permutation_test(first, second, validated.n_permutations, validated.seed)
+        statistic, pvalue = perm["statistic"], perm["pvalue"]
+        perm_used, perm_exact = perm["used"], perm["exact"]
+    else:
+        if validated.test == "ttest":
+            statistic, pvalue = stats.ttest_ind(first, second, equal_var=False)
         else:
-            if validated.test == "ttest":
-                statistic, pvalue = stats.ttest_ind(first, second, equal_var=False)
-            else:
-                statistic, pvalue = stats.mannwhitneyu(first, second, alternative="two-sided")
-            statistic, pvalue = float(statistic), float(pvalue)
-            if sorted(first) == sorted(second):
-                pvalue = 1.0
-            if math.isnan(statistic) or math.isinf(statistic):
-                statistic = None
-            if math.isnan(pvalue) or math.isinf(pvalue):
-                pvalue = None
+            statistic, pvalue = stats.mannwhitneyu(first, second, alternative="two-sided")
+        if sorted(first) == sorted(second):
+            pvalue = 1.0
+        statistic, pvalue = _nan_to_none(float(statistic)), _nan_to_none(float(pvalue))
 
-    elapsed = perf_counter() - started
     result = TextDiffResult(
         n_texts=len(validated.rows),
         groups=groups,
@@ -131,5 +112,5 @@ def run(params: dict) -> dict:
         permutations_exact=perm_exact,
     ).model_dump()
     result["core_version"] = VERSION
-    result["elapsed_sec"] = round(elapsed, 4)
+    result["elapsed_sec"] = round(perf_counter() - started, 4)
     return result
