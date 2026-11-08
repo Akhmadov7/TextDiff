@@ -4,7 +4,7 @@ from django.db import models
 
 class Task(models.Model):
     """
-    Расчётная задача. Модель данных проекта — см. занятие 7.
+    Расчётная задача.
     Параметры и результат хранятся как JSON. Входной CSV в базу не кладётся (ADR-006): он лежит файлом
     в MEDIA_ROOT/inputs/, а в params хранятся настройки анализа и путь к файлу (input_file).
     Большие результаты — в result_file (MEDIA_ROOT).

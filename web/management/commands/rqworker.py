@@ -1,4 +1,4 @@
-"""python manage.py rqworker — запуск воркера очереди (заезд 2). Требует Redis (docker compose up redis)."""
+"""python manage.py rqworker — запуск воркера очереди. Требует Redis (docker compose up redis)."""
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
